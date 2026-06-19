@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TMUA Trainer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f11; --surface: #1a1a1f; --surface2: #222228;
+    --border: #2e2e38; --text: #f0f0f0; --muted: #888; --hint: #555;
+    --blue: #4f8ef7; --green: #3ecf7a; --amber: #f5a623; --red: #e84c4c;
+    --radius: 10px; --radius-lg: 16px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+  header { text-align: center; margin-bottom: 2rem; }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
+  header p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.5rem; width: 100%; max-width: 520px; margin-bottom: 1rem; }
+  .mode-tabs { display: flex; gap: 6px; margin-bottom: 1.25rem; }
+  .mode-tab { flex: 1; padding: 9px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .mode-tab.active { background: var(--surface2); color: var(--text); border-color: #444; font-weight: 500; }
+  .diff-row { display: flex; gap: 6px; margin-bottom: 1.25rem; }
+  .diff-btn { flex: 1; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .diff-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(79,142,247,0.08); font-weight: 500; }
+  .session-timer-wrap { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+  .session-timer-label { font-size: 12px; color: var(--muted); }
+  .session-timer-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
+  .session-timer-value.warning { color: var(--amber); }
+  .session-timer-value.danger { color: var(--red); }
+  .timer-wrap { height: 4px; background: var(--surface2); border-radius: 2px; margin-bottom: 1.5rem; overflow: hidden; }
+  .timer-bar { height: 100%; border-radius: 2px; transition: width 0.1s linear, background 0.3s; }
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1.5rem; }
+  .stat { background: var(--surface2); border-radius: var(--radius); padding: 10px 8px; text-align: center; }
+  .stat-label { font-size: 10px; color: var(--hint); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+  .question-area { background: var(--surface2); border-radius: var(--radius-lg); padding: 2rem 1.5rem; min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 1rem; border: 1px solid var(--border); }
+  .question-text { font-size: 28px; font-weight: 600; color: var(--text); text-align: center; line-height: 1.3; margin-bottom: 6px; }
+  .question-sub { font-size: 12px; color: var(--hint); text-align: center; }
+  .answer-input { width: 100%; font-size: 24px; text-align: center; padding: 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: inherit; margin-bottom: 0.75rem; outline: none; transition: border-color 0.15s; }
+  .answer-input:focus { border-color: var(--blue); }
+  .answer-input:disabled { opacity: 0.4; }
+  .answer-input.correct { border-color: var(--green); background: rgba(62,207,122,0.06); }
+  .answer-input.wrong { border-color: var(--red); background: rgba(232,76,76,0.06); }
+  .solution-panel { background: var(--surface2); border: 1px solid var(--red); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; display: none; }
+  .solution-panel.visible { display: block; }
+  .solution-title { font-size: 13px; font-weight: 600; color: var(--red); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .solution-steps { list-style: none; }
+  .solution-steps li { font-size: 14px; color: var(--text); padding: 6px 0; border-bottom: 1px solid var(--border); line-height: 1.5; }
+  .solution-steps li:last-child { border-bottom: none; }
+  .solution-steps li span { color: var(--muted); font-size: 12px; margin-right: 8px; }
+  .solution-answer { font-size: 15px; font-weight: 600; color: var(--green); margin-top: 0.75rem; }
+  .feedback { text-align: center; font-size: 14px; min-height: 20px; margin-bottom: 1rem; font-weight: 500; }
+  .feedback.correct { color: var(--green); }
+  .feedback.wrong { color: var(--red); }
+  .controls-row { display: flex; gap: 8px; }
+  .btn { flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 13px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .btn:hover { background: var(--surface2); color: var(--text); border-color: #444; }
+  .btn-primary { background: var(--blue); color: #fff; border-color: var(--blue); font-weight: 500; }
+  .btn-primary:hover { background: #3a7de0; border-color: #3a7de0; color: #fff; }
+  .btn-next { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; display: none; }
+  .btn-next:hover { background: #e09520; border-color: #e09520; color: #000; }
+  .btn-next.visible { display: flex; align-items: center; justify-content: center; }
+  .end-screen { text-align: center; padding: 1rem 0; display: none; }
+  .end-screen.visible { display: block; }
+  .end-score { font-size: 56px; font-weight: 700; color: var(--blue); }
+  .end-label { font-size: 14px; color: var(--muted); margin-bottom: 0.5rem; }
+  .end-detail { font-size: 13px; color: var(--hint); margin-bottom: 1.5rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TMUA Trainer</h1>
+  <p>120 seconds — answer as many as you can</p>
+</header>
+<div class="card">
+  <div class="mode-tabs">
+    <button class="mode-tab active" onclick="setMode('arithmetic')">Arithmetic</button>
+    <button class="mode-tab" onclick="setMode('tmua')">TMUA / ESAT</button>
+  </div>
+  <div class="diff-row">
+    <button class="diff-btn active" onclick="setDiff('easy')">Easy</button>
+    <button class="diff-btn" onclick="setDiff('medium')">Medium</button>
+    <button class="diff-btn" onclick="setDiff('hard')">Hard</button>
+  </div>
+  <div class="session-timer-wrap">
+    <span class="session-timer-label">Time remaining</span>
+    <span class="session-timer-value" id="session-timer">2:00</span>
+  </div>
+  <div class="timer-wrap"><div class="timer-bar" id="timer-bar" style="width:100%;background:var(--blue)"></div></div>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-label">Score</div><div class="stat-value" id="score">0</div></div>
+    <div class="stat"><div class="stat-label">Streak</div><div class="stat-value" id="streak">0</div></div>
+    <div class="stat"><div class="stat-label">Best</div><div class="stat-value" id="best">0</div></div>
+  </div>
+  <div id="main-area">
+    <div class="question-area">
+      <div class="question-text" id="question-text">Press start</div>
+      <div class="question-sub" id="question-sub">Choose a mode and difficulty above</div>
+    </div>
+    <input class="answer-input" type="number" id="answer-input" placeholder="Type your answer..." oninput="handleInput()" disabled />
+    <div class="feedback" id="feedback"></div>
+    <div class="solution-panel" id="solution-panel">
+      <div class="solution-title">Solution</div>
+      <ul class="solution-steps" id="solution-steps"></ul>
+      <div class="solution-answer" id="solution-answer"></div>
+    </div>
+    <div class="controls-row">
+      <button class="btn btn-primary" onclick="startSession()" id="start-btn">Start</button>
+      <button class="btn btn-next" id="next-btn" onclick="resumeSession()">Next question →</button>
+      <button class="btn" onclick="resetSession()">Reset</button>
+    </div>
+  </div>
+  <div class="end-screen" id="end-screen">
+    <div class="end-score" id="end-score">0</div>
+    <div class="end-label">correct in 120 seconds</div>
+    <div class="end-detail" id="end-detail"></div>
+    <div class="controls-row" style="justify-content:center">
+      <button class="btn btn-primary" onclick="resetSession()" style="max-width:160px">Play again</button>
+    </div>
+  </div>
+</div>
+<script>
+let mode='arithmetic',diff='easy';
+let score=0,streak=0,best=0,totalAttempted=0;
+let currentQ=null,sessionInterval=null;
+let sessionTimeLeft=120,sessionActive=false,accepting=false,paused=false;
+
+function setMode(m){mode=m;document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='arithmetic')||(i===1&&m==='tmua')));resetSession();}
+function setDiff(d){diff=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===d));if(sessionActive&&!paused)nextQuestion();}
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+
+function generateArithmetic(){
+  let q,a,steps;
+  if(diff==='easy'){
+    const t=rand(0,3);
+    if(t===0){let x=rand(2,50),y=rand(2,50);q=`${x} + ${y}`;a=x+y;steps=[`Add ${x} and ${y}`,`${x} + ${y} = ${a}`];}
+    else if(t===1){let x=rand(10,99),y=rand(1,x);q=`${x} − ${y}`;a=x-y;steps=[`Subtract ${y} from ${x}`,`= ${a}`];}
+    else if(t===2){let x=rand(2,12),y=rand(2,12);q=`${x} × ${y}`;a=x*y;steps=[`${x} times ${y}`,`= ${a}`];}
+    else{let y=rand(2,12),x=y*rand(2,12);q=`${x} ÷ ${y}`;a=x/y;steps=[`${x} divided by ${y}`,`= ${a}`];}
+  } else if(diff==='medium'){
+    const t=rand(0,3);
+    if(t===0){let x=rand(50,500),y=rand(50,500);q=`${x} + ${y}`;a=x+y;steps=[`Hundreds: ${Math.floor(x/100)*100} + ${Math.floor(y/100)*100}`,`Remainder: ${x%100} + ${y%100}`,`Total: ${a}`];}
+    else if(t===1){let x=rand(100,999),y=rand(10,x);q=`${x} − ${y}`;a=x-y;steps=[`${x} − ${y} = ${a}`];}
+    else if(t===2){let x=rand(12,25),y=rand(12,25);q=`${x} × ${y}`;a=x*y;let p=Math.floor(y/10)*10;steps=[`${x} × ${p} = ${x*p}`,`${x} × ${y-p} = ${x*(y-p)}`,`${x*p} + ${x*(y-p)} = ${a}`];}
+    else{let y=rand(3,15),x=y*rand(3,20);q=`${x} ÷ ${y}`;a=x/y;steps=[`${y} × ? = ${x}`,`${y} × ${a} = ${x}`,`Answer: ${a}`];}
+  } else {
+    const t=rand(0,4);
+    if(t===0){let x=rand(100,999),y=rand(100,999);q=`${x} + ${y}`;a=x+y;steps=[`Column addition`,`${x} + ${y} = ${a}`];}
+    else if(t===1){let x=rand(200,999),y=rand(100,x-1);q=`${x} − ${y}`;a=x-y;steps=[`${x} − ${y} = ${a}`];}
+    else if(t===2){let x=rand(15,50),y=rand(15,50);q=`${x} × ${y}`;a=x*y;let p=Math.floor(y/10)*10;steps=[`${x} × ${p} = ${x*p}`,`${x} × ${y-p} = ${x*(y-p)}`,`Sum: ${a}`];}
+    else if(t===3){let p=rand(2,9),r=rand(2,9);q=`${p*p*r} ÷ ${p}`;a=p*r;steps=[`${p*p*r} = ${p}² × ${r}`,`÷ ${p} gives ${p} × ${r}`,`= ${a}`];}
+    else{let x=rand(10,50);q=`${x}²`;a=x*x;steps=[`${x} × ${x}`,`= ${a}`];}
+  }
+  return{q,a,steps,sub:''};
+}
+
+const tmuaQ={
+  easy:[
+    {q:'How many primes are less than 20?',a:8,sub:'',steps:['List: 2, 3, 5, 7, 11, 13, 17, 19','Count them: 8 primes','Answer: 8']},
+    {q:'What is 15% of 240?',a:36,sub:'',steps:['10% of 240 = 24','5% = 12','15% = 24 + 12 = 36']},
+    {q:'2³ × 2⁴ = ?',a:128,sub:'Write as a number',steps:['Same base: add exponents','2^(3+4) = 2⁷','2⁷ = 128']},
+    {q:'Sum of interior angles of a hexagon (°)?',a:720,sub:'',steps:['Formula: (n−2) × 180°','n = 6','(6−2) × 180 = 4 × 180 = 720°']},
+    {q:'f(x) = 3x − 7. What is f(5)?',a:8,sub:'',steps:['Substitute x = 5','3(5) − 7 = 15 − 7','= 8']},
+    {q:'√144 + √25 = ?',a:17,sub:'',steps:['√144 = 12','√25 = 5','12 + 5 = 17']},
+    {q:'How many factors does 36 have?',a:9,sub:'',steps:['36 = 2² × 3²','Factors = (2+1)(2+1) = 9','1,2,3,4,6,9,12,18,36']},
+    {q:'LCM of 4 and 6?',a:12,sub:'',steps:['4 = 2², 6 = 2 × 3','LCM = 2² × 3','= 12']},
+    {q:'2⁵ − 5² = ?',a:7,sub:'',steps:['2⁵ = 32','5² = 25','32 − 25 = 7']},
+    {q:'How many edges does a cube have?',a:12,sub:'',steps:['A cube has 6 faces and 8 vertices','Euler: V − E + F = 2','8 − E + 6 = 2 → E = 12']},
+    {q:'What is 3² + 4²?',a:25,sub:'',steps:['3² = 9','4² = 16','9 + 16 = 25']},
+    {q:'HCF of 36 and 48?',a:12,sub:'',steps:['36 = 2² × 3²','48 = 2⁴ × 3','HCF = 2² × 3 = 12']},
+    {q:'2⁵ = ?',a:32,sub:'',steps:['2¹=2, 2²=4, 2³=8, 2⁴=16, 2⁵=32','Answer: 32']},
+    {q:'How many degrees in a right angle?',a:90,sub:'',steps:['A right angle = 90°']},
+    {q:'What is 0.5²?',a:0.25,sub:'',steps:['0.5 × 0.5','= 0.25']},
+  ],
+  medium:[
+    {q:'Integers 1–100 divisible by 3 or 5?',a:47,sub:'',steps:['Div by 3: ⌊100/3⌋ = 33','Div by 5: ⌊100/5⌋ = 20','Div by 15: ⌊100/15⌋ = 6','Inclusion-exclusion: 33+20−6 = 47']},
+    {q:'Remainder when 157 ÷ 11?',a:3,sub:'',steps:['11 × 14 = 154','157 − 154 = 3','Remainder = 3']},
+    {q:'log₂(32) = ?',a:5,sub:'',steps:['2 to what power = 32?','2⁵ = 32','Answer: 5']},
+    {q:'Gradient of 3x − 2y = 6?',a:1.5,sub:'',steps:['Rearrange: −2y = −3x + 6','y = (3/2)x − 3','Gradient = 1.5']},
+    {q:'⁶P₄ = ?',a:360,sub:'Permutations',steps:['ⁿPᵣ = n!/(n−r)!','⁶P₄ = 6!/2!','= 720/2 = 360']},
+    {q:'Sum of first 10 odd numbers?',a:100,sub:'',steps:['Sum of first n odd numbers = n²','n = 10','10² = 100']},
+    {q:'Diagonals of an octagon?',a:20,sub:'',steps:['Formula: n(n−3)/2','n = 8','8×5/2 = 20']},
+    {q:'4! ÷ 2! = ?',a:12,sub:'',steps:['4! = 24','2! = 2','24 ÷ 2 = 12']},
+    {q:'How many integers satisfy |x| < 5?',a:9,sub:'',steps:['−5 < x < 5','Integers: −4 to 4','Count = 9']},
+    {q:'What is 2¹⁰?',a:1024,sub:'',steps:['2⁵ = 32','2¹⁰ = 32² = 1024']},
+    {q:'Sum of angles in a pentagon (°)?',a:540,sub:'',steps:['(n−2) × 180','(5−2) × 180 = 3 × 180','= 540°']},
+    {q:'⁶C₃ = ?',a:20,sub:'',steps:['⁶C₃ = 6!/(3!×3!)','= 720/(6×6)','= 20']},
+  ],
+  hard:[
+    {q:'φ(100) = ?',a:40,sub:'Euler totient',steps:['100 = 2² × 5²','φ(100) = 100(1−1/2)(1−1/5)','= 100 × 1/2 × 4/5 = 40']},
+    {q:'Coefficient of x² in (1+x)⁵?',a:10,sub:'',steps:['Binomial theorem: ⁵C₂','⁵C₂ = 5!/(2!×3!)','= 10']},
+    {q:'Sum of integers from −50 to 50?',a:0,sub:'',steps:['Each pair (−k, k) sums to 0','Plus 0 in the middle','Total = 0']},
+    {q:'Product of roots of x²−5x+6=0?',a:6,sub:'',steps:['Product of roots = c/a','c = 6, a = 1','= 6 (roots are 2 and 3)']},
+    {q:'Last digit of 7⁴⁸?',a:1,sub:'',steps:['Last digits of 7ⁿ cycle: 7,9,3,1','Cycle length = 4','48 ÷ 4 = 12 r0 → last digit = 1']},
+    {q:'P(A∪B) if P(A)=0.4, P(B)=0.5, P(A∩B)=0.2?',a:0.7,sub:'',steps:['P(A∪B) = P(A)+P(B)−P(A∩B)','= 0.4+0.5−0.2','= 0.7']},
+    {q:'Solutions to sin(x)=0.5 in [0°,360°]?',a:2,sub:'',steps:['Principal: x = 30°','Also: x = 180°−30° = 150°','2 solutions total']},
+    {q:'Remainder of 2¹⁰⁰ ÷ 3?',a:1,sub:'',steps:['2¹ mod 3 = 2, 2² mod 3 = 1','Period = 2','100 is even → answer = 1']},
+    {q:'∑(k=1 to 5) k² = ?',a:55,sub:'',steps:['1+4+9+16+25','= 55']},
+    {q:'If x + 1/x = 3, what is x² + 1/x²?',a:7,sub:'',steps:['Square: (x+1/x)² = 9','x² + 2 + 1/x² = 9','x² + 1/x² = 7']},
+    {q:'Trailing zeros in 20!?',a:4,sub:'',steps:['Count factors of 5','⌊20/5⌋=4, ⌊20/25⌋=0','4 trailing zeros']},
+    {q:'3²⁰ mod 7 = ?',a:2,sub:'',steps:['Powers of 3 mod 7: 3,2,6,4,5,1 (cycle 6)','20 = 3×6+2','3²⁰ ≡ 3² = 9 ≡ 2 mod 7']},
+  ]
+};
+
+function generateTMUA(){const pool=tmuaQ[diff];const item=pool[rand(0,pool.length-1)];return{q:item.q,a:item.a,sub:item.sub||'',steps:item.steps};}
+
+function handleInput(){
+  if(!accepting||!currentQ)return;
+  const val=parseFloat(document.getElementById('answer-input').value);
+  if(isNaN(val))return;
+  if(Math.abs(val-currentQ.a)<0.01){
+    accepting=false;
+    score++;streak++;totalAttempted++;
+    if(streak>best)best=streak;
+    const inp=document.getElementById('answer-input');
+    inp.classList.add('correct');inp.disabled=true;
+    showFeedback(true,streak>=3?`Correct! ${streak} in a row`:'Correct!');
+    updateStats();
+    setTimeout(nextQuestion,600);
+  }
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('answer-input').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&sessionActive&&!paused&&accepting){
+      const val=parseFloat(this.value);
+      if(!isNaN(val)&&Math.abs(val-currentQ.a)>=0.01)showWrong();
+    }
+  });
+});
+
+function nextQuestion(){
+  accepting=false;hideSolution();
+  document.getElementById('next-btn').classList.remove('visible');
+  const inp=document.getElementById('answer-input');
+  inp.value='';inp.disabled=false;inp.className='answer-input';inp.focus();
+  document.getElementById('feedback').textContent='';
+  document.getElementById('feedback').className='feedback';
+  currentQ=mode==='arithmetic'?generateArithmetic():generateTMUA();
+  document.getElementById('question-text').textContent=currentQ.q;
+  document.getElementById('question-sub').textContent=currentQ.sub;
+  accepting=true;
+}
+
+function showWrong(){
+  accepting=false;paused=true;
+  clearInterval(sessionInterval);
+  totalAttempted++;streak=0;updateStats();
+  const inp=document.getElementById('answer-input');
+  inp.classList.add('wrong');inp.disabled=true;
+  showFeedback(false,'Wrong — timer paused. Study the solution, then continue.');
+  showSolution(currentQ);
+  document.getElementById('next-btn').classList.add('visible');
+}
+
+function resumeSession(){
+  paused=false;
+  document.getElementById('next-btn').classList.remove('visible');
+  nextQuestion();startTimer();
+}
+
+function showSolution(q){
+  const panel=document.getElementById('solution-panel');
+  const steps=document.getElementById('solution-steps');
+  const ans=document.getElementById('solution-answer');
+  steps.innerHTML='';
+  q.steps.forEach((s,i)=>{const li=document.createElement('li');li.innerHTML=`<span>${i+1}.</span>${s}`;steps.appendChild(li);});
+  ans.textContent=`Answer: ${q.a}`;
+  panel.classList.add('visible');
+}
+
+function hideSolution(){document.getElementById('solution-panel').classList.remove('visible');}
+function showFeedback(ok,msg){const el=document.getElementById('feedback');el.textContent=msg;el.className='feedback '+(ok?'correct':'wrong');}
+function updateStats(){document.getElementById('score').textContent=score;document.getElementById('streak').textContent=streak;document.getElementById('best').textContent=best;}
+
+function formatTime(s){const m=Math.floor(s/60);const sec=Math.ceil(s%60);return`${m}:${sec.toString().padStart(2,'0')}`;}
+
+function updateSessionTimer(){
+  const el=document.getElementById('session-timer');
+  el.textContent=formatTime(sessionTimeLeft);
+  el.className='session-timer-value'+(sessionTimeLeft<=10?' danger':sessionTimeLeft<=30?' warning':'');
+  const bar=document.getElementById('timer-bar');
+  const pct=(sessionTimeLeft/120)*100;
+  bar.style.width=pct+'%';
+  bar.style.background=pct>50?'var(--blue)':pct>20?'var(--amber)':'var(--red)';
+}
+
+function startTimer(){
+  clearInterval(sessionInterval);
+  sessionInterval=setInterval(()=>{
+    sessionTimeLeft-=0.1;
+    updateSessionTimer();
+    if(sessionTimeLeft<=0){clearInterval(sessionInterval);endSession();}
+  },100);
+}
+
+function startSession(){
+  sessionActive=true;paused=false;
+  score=0;streak=0;totalAttempted=0;sessionTimeLeft=120;
+  updateStats();updateSessionTimer();
+  document.getElementById('start-btn').textContent='Restart';
+  document.getElementById('end-screen').classList.remove('visible');
+  document.getElementById('main-area').style.display='block';
+  hideSolution();document.getElementById('next-btn').classList.remove('visible');
+  nextQuestion();startTimer();
+}
+
+function endSession(){
+  sessionActive=false;accepting=false;
+  clearInterval(sessionInterval);
+  document.getElementById('answer-input').disabled=true;
+  document.getElementById('main-area').style.display='none';
+  document.getElementById('end-screen').classList.add('visible');
+  document.getElementById('end-score').textContent=score;
+  const acc=totalAttempted>0?Math.round((score/totalAttempted)*100):0;
+  document.getElementById('end-detail').textContent=`${totalAttempted} attempted · ${acc}% accuracy · best streak: ${best}`;
+}
+
+function resetSession(){
+  clearInterval(sessionInterval);
+  sessionActive=false;accepting=false;paused=false;
+  score=0;streak=0;best=0;totalAttempted=0;sessionTimeLeft=120;
+  updateStats();updateSessionTimer();
+  document.getElementById('question-text').textContent='Press start';
+  document.getElementById('question-sub').textContent='Choose a mode and difficulty above';
+  document.getElementById('feedback').textContent='';
+  document.getElementById('feedback').className='feedback';
+  document.getElementById('answer-input').value='';
+  document.getElementById('answer-input').disabled=true;
+  document.getElementById('answer-input').className='answer-input';
+  document.getElementById('timer-bar').style.width='100%';
+  document.getElementById('timer-bar').style.background='var(--blue)';
+  document.getElementById('start-btn').textContent='Start';
+  document.getElementById('next-btn').classList.remove('visible');
+  document.getElementById('end-screen').classList.remove('visible');
+  document.getElementById('main-area').style.display='block';
+  hideSolution();
+}
+</script>
+</body>
+</html>

@@ -67,18 +67,12 @@
   .end-label { font-size: 14px; color: var(--muted); margin-bottom: 0.5rem; }
   .end-detail { font-size: 13px; color: var(--hint); margin-bottom: 1.5rem; }
   .topic-badge { display: inline-block; font-size: 10px; color: var(--blue); background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.2); border-radius: 6px; padding: 2px 8px; margin-top: 8px; letter-spacing: 0.4px; text-transform: uppercase; }
-  .answer-toggle { display: flex; gap: 6px; margin-bottom: 1.25rem; }
-  .answer-toggle button { flex: 1; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-  .answer-toggle button.active { border-color: var(--blue); color: var(--blue); background: rgba(79,142,247,0.08); font-weight: 500; }
-  .choices { display: none; flex-direction: column; gap: 8px; margin-bottom: 0.75rem; }
-  .choice { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); color: var(--text); font-size: 17px; font-family: inherit; cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
-  .choice:hover:not(:disabled) { border-color: #555; }
-  .choice:disabled { cursor: default; }
-  .choice .key { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 600; flex: 0 0 auto; }
-  .choice.correct { border-color: var(--green); background: rgba(62,207,122,0.12); color: var(--green); }
-  .choice.correct .key { background: rgba(62,207,122,0.2); color: var(--green); }
-  .choice.wrong { border-color: var(--red); background: rgba(232,76,76,0.12); color: var(--red); }
-  .choice.wrong .key { background: rgba(232,76,76,0.2); color: var(--red); }
+  .smc-switch { align-items: center; gap: 8px; margin: 0 auto; }
+  .smc-switch-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .switch { position: relative; width: 40px; height: 23px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; padding: 0; flex: 0 0 auto; transition: background 0.18s, border-color 0.18s; }
+  .switch .knob { position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.4); transition: transform 0.18s; }
+  .switch.on { background: var(--green); border-color: var(--green); }
+  .switch.on .knob { transform: translateX(17px); }
   .save-row { display: flex; gap: 8px; max-width: 320px; margin: 0 auto 1.25rem; }
   .save-row input { flex: 1; font-size: 14px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: inherit; outline: none; text-align: center; }
   .save-row input:focus { border-color: var(--blue); }
@@ -117,12 +111,12 @@
     <button class="diff-btn" onclick="setDiff('medium')">Medium</button>
     <button class="diff-btn" onclick="setDiff('hard')">Hard</button>
   </div>
-  <div class="answer-toggle">
-    <button class="active" onclick="setAnswerStyle('choice')">Multiple choice</button>
-    <button onclick="setAnswerStyle('type')">Type answer</button>
-  </div>
   <div class="session-timer-wrap">
     <span class="session-timer-label">Time remaining</span>
+    <div class="smc-switch" id="tmua-sub" style="display:none">
+      <span class="smc-switch-label">SMC</span>
+      <button class="switch" id="smc-switch" role="switch" aria-checked="false" onclick="toggleSmc()"><span class="knob"></span></button>
+    </div>
     <span class="session-timer-value" id="session-timer">2:00</span>
   </div>
   <div class="timer-wrap"><div class="timer-bar" id="timer-bar" style="width:100%;background:var(--blue)"></div></div>
@@ -137,7 +131,6 @@
       <div class="question-sub" id="question-sub">Choose a mode and difficulty above</div>
       <div class="topic-badge" id="topic-badge" style="display:none"></div>
     </div>
-    <div class="choices" id="choices"></div>
     <input class="answer-input" type="text" inputmode="text" autocomplete="off" id="answer-input" placeholder="Answer — e.g. 12, 0.5 or 1/2" oninput="handleInput()" disabled />
     <div class="feedback" id="feedback"></div>
     <div class="solution-panel" id="solution-panel">
@@ -179,11 +172,19 @@ let mode='arithmetic', diff='easy';
 let score=0, streak=0, best=0, totalAttempted=0;
 let currentQ=null, sessionInterval=null;
 let seenQuestions=new Set(); // questions shown this session — cleared each new session
-let answerStyle='choice', currentChoices=[];
+let tmuaMode='tmua'; // within TMUA/ESAT hard: 'tmua' (spec topics) or 'smc' (problem solving)
 let sessionTimeLeft=120, sessionActive=false, accepting=false, paused=false;
 
-function setMode(m){mode=m;document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='arithmetic')||(i===1&&m==='tmua')));resetSession();renderLeaderboard();}
-function setDiff(d){diff=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===d));renderLeaderboard();if(sessionActive&&!paused)nextQuestion();}
+function setMode(m){mode=m;document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='arithmetic')||(i===1&&m==='tmua')));updateTmuaSub();resetSession();renderLeaderboard();}
+function setTmuaMode(m){tmuaMode=m;const sw=document.getElementById('smc-switch');sw.classList.toggle('on',m==='smc');sw.setAttribute('aria-checked',m==='smc');renderLeaderboard();if(sessionActive&&!paused)nextQuestion();}
+function toggleSmc(){setTmuaMode(tmuaMode==='smc'?'tmua':'smc');}
+function setDiff(d){diff=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===d));updateTmuaSub();renderLeaderboard();if(sessionActive&&!paused)nextQuestion();}
+// The SMC toggle only makes sense on TMUA/ESAT + Hard
+function updateTmuaSub(){
+  const show=(mode==='tmua'&&diff==='hard');
+  document.getElementById('tmua-sub').style.display=show?'flex':'none';
+  if(!show&&tmuaMode!=='tmua')setTmuaMode('tmua');
+}
 function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
 function pick(arr){return arr[rand(0,arr.length-1)];}
 function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;}
@@ -840,14 +841,15 @@ function generateUnique(){
 
 // TMUA dispatcher
 function generateTMUA(){
+  if(tmuaMode==='smc'&&diff==='hard')return genSMC(); // SMC mode (Hard only): problem-solving questions
   let gens;
   if(diff==='easy'){
-    gens=[genIndices,genQuadratics,genSequences,genBinomial,genLogs,genTrigExact,genPythagoras,genNumber,genPolygonGeometry,genProbability,genCoordGeom,genSMC];
+    gens=[genIndices,genQuadratics,genSequences,genBinomial,genLogs,genTrigExact,genPythagoras,genNumber,genPolygonGeometry,genProbability,genCoordGeom];
   } else if(diff==='medium'){
-    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations,genSMC];
+    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations];
   } else {
     // Hard: full spec, harder parameters, all generators
-    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations,genSMC];
+    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations];
   }
   for(let i=0;i<10;i++){
     try{
@@ -873,7 +875,7 @@ function parseAnswer(str){
 }
 
 function handleInput(){
-  if(answerStyle!=='type'||!accepting||!currentQ)return;
+  if(!accepting||!currentQ)return;
   const val=parseAnswer(document.getElementById('answer-input').value);
   if(isNaN(val))return;
   if(Math.abs(val-currentQ.a)<0.015){
@@ -887,26 +889,19 @@ function handleInput(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
-  applyAnswerStyle();
   document.getElementById('answer-input').addEventListener('keydown',function(e){
     if(e.key==='Enter'&&sessionActive&&!paused&&accepting){
       const val=parseAnswer(this.value);
       if(!isNaN(val)&&Math.abs(val-currentQ.a)>=0.015)showWrong();
     }
   });
-  // Pick a multiple-choice option with keys 1–5 or A–E
-  document.addEventListener('keydown',e=>{
-    if(answerStyle!=='choice'||!sessionActive||paused||!accepting)return;
-    let idx=-1;
-    if(e.key>='1'&&e.key<='5')idx=+e.key-1;
-    else{const k=e.key.toLowerCase();if(k>='a'&&k<='e')idx='abcde'.indexOf(k);}
-    if(idx>=0&&idx<currentChoices.length){e.preventDefault();chooseOption(idx);}
-  });
 });
 
 function nextQuestion(){
   accepting=false;hideSolution();
   document.getElementById('next-btn').classList.remove('visible');
+  const inp=document.getElementById('answer-input');
+  inp.value='';inp.disabled=false;inp.className='answer-input';inp.focus();
   document.getElementById('feedback').textContent='';
   document.getElementById('feedback').className='feedback';
   currentQ=generateUnique();
@@ -916,93 +911,16 @@ function nextQuestion(){
   if(mode==='tmua'&&currentQ.topic){badge.textContent=currentQ.topic;badge.style.display='inline-block';}
   else badge.style.display='none';
   accepting=true;
-  renderAnswerArea();
-}
-
-// Swap the answer widgets for the current question depending on the chosen style
-function applyAnswerStyle(){
-  document.getElementById('choices').style.display=answerStyle==='choice'?'flex':'none';
-  document.getElementById('answer-input').style.display=answerStyle==='type'?'block':'none';
-}
-function setAnswerStyle(s){
-  answerStyle=s;
-  document.querySelectorAll('.answer-toggle button').forEach((b,i)=>b.classList.toggle('active',(i===0&&s==='choice')||(i===1&&s==='type')));
-  applyAnswerStyle();
-  if(sessionActive&&!paused&&accepting&&currentQ)renderAnswerArea();
-}
-function renderAnswerArea(){
-  applyAnswerStyle();
-  const inp=document.getElementById('answer-input');
-  const choicesEl=document.getElementById('choices');
-  if(answerStyle==='type'){
-    choicesEl.innerHTML='';
-    inp.value='';inp.disabled=false;inp.className='answer-input';inp.focus();
-  } else {
-    inp.value='';inp.disabled=true;inp.className='answer-input';
-    currentChoices=buildChoices(currentQ.a);
-    choicesEl.innerHTML=currentChoices.map((v,i)=>
-      `<button class="choice" onclick="chooseOption(${i})"><span class="key">${'ABCDE'[i]}</span><span>${formatNum(v)}</span></button>`
-    ).join('');
-  }
-}
-
-function chooseOption(i){
-  if(answerStyle!=='choice'||!accepting||!currentQ)return;
-  const v=currentChoices[i];
-  const btns=document.querySelectorAll('#choices .choice');
-  btns.forEach(b=>b.disabled=true);
-  if(Math.abs(v-currentQ.a)<0.015){
-    accepting=false;score++;streak++;totalAttempted++;
-    if(streak>best)best=streak;
-    btns[i].classList.add('correct');
-    showFeedback(true,streak>=3?`Correct! ${streak} in a row 🔥`:'Correct!');
-    updateStats();setTimeout(nextQuestion,600);
-  } else {
-    btns[i].classList.add('wrong');
-    btns.forEach((b,j)=>{if(Math.abs(currentChoices[j]-currentQ.a)<0.015)b.classList.add('correct');});
-    pauseForWrong();
-  }
-}
-
-function pauseForWrong(){
-  accepting=false;paused=true;clearInterval(sessionInterval);
-  totalAttempted++;streak=0;updateStats();
-  showFeedback(false,'Wrong — timer paused. Study the solution, then continue.');
-  showSolution(currentQ);
-  document.getElementById('next-btn').classList.add('visible');
 }
 
 function showWrong(){
+  accepting=false;paused=true;clearInterval(sessionInterval);
+  totalAttempted++;streak=0;updateStats();
   const inp=document.getElementById('answer-input');
   inp.classList.add('wrong');inp.disabled=true;
-  pauseForWrong();
-}
-
-// ── Multiple-choice option building ───────────────────────────────────────
-function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(0,i);[a[i],a[j]]=[a[j],a[i]];}return a;}
-function formatNum(v){return Number.isInteger(v)?''+v:''+(+v.toFixed(4));}
-function keyOf(v){return (+(+v).toFixed(4)).toString();}
-function buildChoices(ans){
-  const isInt=Number.isInteger(ans),mag=Math.abs(ans);
-  let raw=isInt
-    ? [ans+1,ans-1,ans+2,ans-2,ans+3,ans-3,ans+5,ans-5,ans+10,ans-10,2*ans,-ans]
-    : [ans+0.1,ans-0.1,ans+0.5,ans-0.5,ans+ (mag<1?0.25:1),ans- (mag<1?0.25:1),2*ans,ans/2,-ans].map(v=>+v.toFixed(4));
-  const step=isInt?1:(mag<1?0.1:1);
-  const seen=new Set([keyOf(ans)]),distinct=[];
-  shuffle(raw);
-  for(const v of raw){
-    if(!Number.isFinite(v)||Math.abs(v-ans)<1e-9)continue;
-    const k=keyOf(v);if(seen.has(k))continue;
-    seen.add(k);distinct.push(v);
-    if(distinct.length>=4)break;
-  }
-  let pad=1;
-  while(distinct.length<4&&pad<60){
-    const v=+(ans+pad*step).toFixed(4),k=keyOf(v);
-    if(!seen.has(k)&&Math.abs(v-ans)>1e-9){seen.add(k);distinct.push(v);}
-    pad++;
-  }
-  return shuffle([ans,...distinct]);
+  showFeedback(false,'Wrong — timer paused. Study the solution, then continue.');
+  showSolution(currentQ);
+  document.getElementById('next-btn').classList.add('visible');
 }
 
 function resumeSession(){paused=false;document.getElementById('next-btn').classList.remove('visible');nextQuestion();startTimer();}
@@ -1051,7 +969,6 @@ function startSession(){
 function endSession(){
   sessionActive=false;accepting=false;clearInterval(sessionInterval);
   document.getElementById('answer-input').disabled=true;
-  document.getElementById('choices').innerHTML='';
   document.getElementById('main-area').style.display='none';
   document.getElementById('end-screen').classList.add('visible');
   document.getElementById('end-score').textContent=score;
@@ -1079,7 +996,6 @@ function resetSession(){
   document.getElementById('answer-input').value='';
   document.getElementById('answer-input').disabled=true;
   document.getElementById('answer-input').className='answer-input';
-  document.getElementById('choices').innerHTML='';
   document.getElementById('timer-bar').style.width='100%';
   document.getElementById('timer-bar').style.background='var(--blue)';
   document.getElementById('start-btn').textContent='Start';
@@ -1100,6 +1016,8 @@ const LB_KEY='tmua_leaderboard_v1';
 let lastSavedId=null, savedThisSession=false, renderToken=0;
 
 function remoteOn(){return SUPABASE_URL.trim()!==''&&SUPABASE_KEY.trim()!=='';}
+// SMC (TMUA/ESAT + Hard + toggle on) counts as its own leaderboard
+function activeMode(){return (mode==='tmua'&&tmuaMode==='smc'&&diff==='hard')?'smc':mode;}
 function sbHeaders(){return {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'};}
 
 function loadBoard(){
@@ -1128,12 +1046,14 @@ function paintRows(list){
 }
 
 async function renderLeaderboard(){
-  const modeLabel=mode==='arithmetic'?'Arithmetic':'TMUA / ESAT';
-  document.getElementById('lb-filter').textContent=`${modeLabel} · ${diff.charAt(0).toUpperCase()+diff.slice(1)}`+(remoteOn()?' · global':' · this device');
+  const bMode=activeMode();
+  const modeLabel=bMode==='arithmetic'?'Arithmetic':bMode==='smc'?'TMUA / ESAT · SMC':'TMUA / ESAT';
+  const diffLabel=bMode==='smc'?'':` · ${diff.charAt(0).toUpperCase()+diff.slice(1)}`;
+  document.getElementById('lb-filter').textContent=`${modeLabel}${diffLabel}`+(remoteOn()?' · global':' · this device');
   document.getElementById('lb-clear').style.display=remoteOn()?'none':'inline';
   if(!remoteOn()){
     const list=loadBoard()
-      .filter(e=>e.mode===mode&&e.diff===diff)
+      .filter(e=>e.mode===bMode&&e.diff===diff)
       .sort((a,b)=>b.score-a.score||b.bestStreak-a.bestStreak||a.t-b.t)
       .slice(0,10);
     paintRows(list);
@@ -1142,7 +1062,7 @@ async function renderLeaderboard(){
   const token=++renderToken;
   document.getElementById('lb-list').innerHTML='<div class="lb-empty">Loading scores…</div>';
   try{
-    const url=`${SUPABASE_URL}/rest/v1/scores?select=*&mode=eq.${mode}&diff=eq.${diff}&order=score.desc,best_streak.desc,created_at.asc&limit=10`;
+    const url=`${SUPABASE_URL}/rest/v1/scores?select=*&mode=eq.${bMode}&diff=eq.${diff}&order=score.desc,best_streak.desc,created_at.asc&limit=10`;
     const res=await fetch(url,{headers:sbHeaders()});
     if(!res.ok)throw new Error('HTTP '+res.status);
     const rows=await res.json();
@@ -1168,7 +1088,7 @@ async function saveScore(){
       const res=await fetch(`${SUPABASE_URL}/rest/v1/scores`,{
         method:'POST',
         headers:{...sbHeaders(),'Prefer':'return=representation'},
-        body:JSON.stringify({name,score,acc,best_streak:best,mode,diff})
+        body:JSON.stringify({name,score,acc,best_streak:best,mode:activeMode(),diff})
       });
       if(!res.ok)throw new Error('HTTP '+res.status);
       const rows=await res.json();
@@ -1186,7 +1106,7 @@ async function saveScore(){
   // local fallback
   const id='e'+(loadBoard().length)+'-'+score+'-'+name.length;
   const list=loadBoard();
-  list.push({id,name,score,acc,bestStreak:best,mode,diff,t:list.length});
+  list.push({id,name,score,acc,bestStreak:best,mode:activeMode(),diff,t:list.length});
   storeBoard(list);
   lastSavedId=id;savedThisSession=true;
   saveBtn.textContent='Saved ✓';saveBtn.disabled=true;input.disabled=true;

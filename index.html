@@ -67,6 +67,39 @@
   .end-label { font-size: 14px; color: var(--muted); margin-bottom: 0.5rem; }
   .end-detail { font-size: 13px; color: var(--hint); margin-bottom: 1.5rem; }
   .topic-badge { display: inline-block; font-size: 10px; color: var(--blue); background: rgba(79,142,247,0.12); border: 1px solid rgba(79,142,247,0.2); border-radius: 6px; padding: 2px 8px; margin-top: 8px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .answer-toggle { display: flex; gap: 6px; margin-bottom: 1.25rem; }
+  .answer-toggle button { flex: 1; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .answer-toggle button.active { border-color: var(--blue); color: var(--blue); background: rgba(79,142,247,0.08); font-weight: 500; }
+  .choices { display: none; flex-direction: column; gap: 8px; margin-bottom: 0.75rem; }
+  .choice { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface2); color: var(--text); font-size: 17px; font-family: inherit; cursor: pointer; text-align: left; transition: border-color 0.12s, background 0.12s; }
+  .choice:hover:not(:disabled) { border-color: #555; }
+  .choice:disabled { cursor: default; }
+  .choice .key { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 600; flex: 0 0 auto; }
+  .choice.correct { border-color: var(--green); background: rgba(62,207,122,0.12); color: var(--green); }
+  .choice.correct .key { background: rgba(62,207,122,0.2); color: var(--green); }
+  .choice.wrong { border-color: var(--red); background: rgba(232,76,76,0.12); color: var(--red); }
+  .choice.wrong .key { background: rgba(232,76,76,0.2); color: var(--red); }
+  .save-row { display: flex; gap: 8px; max-width: 320px; margin: 0 auto 1.25rem; }
+  .save-row input { flex: 1; font-size: 14px; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-family: inherit; outline: none; text-align: center; }
+  .save-row input:focus { border-color: var(--blue); }
+  .save-row .btn { flex: 0 0 auto; max-width: 120px; }
+  .lb-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .lb-title { font-size: 13px; font-weight: 600; color: var(--text); text-transform: uppercase; letter-spacing: 0.5px; }
+  .lb-filter { font-size: 11px; color: var(--muted); }
+  .lb-list { list-style: none; }
+  .lb-row { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row.you { background: rgba(79,142,247,0.08); border-radius: 6px; }
+  .lb-rank { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 600; text-align: center; }
+  .lb-row.top1 .lb-rank { color: #f5c518; }
+  .lb-row.top2 .lb-rank { color: #c0c8d0; }
+  .lb-row.top3 .lb-rank { color: #cd7f32; }
+  .lb-name { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-name small { color: var(--hint); font-size: 11px; font-weight: 400; margin-left: 6px; }
+  .lb-score { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--blue); }
+  .lb-empty { text-align: center; color: var(--hint); font-size: 13px; padding: 1.5rem 0; }
+  .lb-clear { font-size: 11px; color: var(--hint); background: none; border: none; cursor: pointer; font-family: inherit; text-decoration: underline; }
+  .lb-clear:hover { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -84,6 +117,10 @@
     <button class="diff-btn" onclick="setDiff('medium')">Medium</button>
     <button class="diff-btn" onclick="setDiff('hard')">Hard</button>
   </div>
+  <div class="answer-toggle">
+    <button class="active" onclick="setAnswerStyle('choice')">Multiple choice</button>
+    <button onclick="setAnswerStyle('type')">Type answer</button>
+  </div>
   <div class="session-timer-wrap">
     <span class="session-timer-label">Time remaining</span>
     <span class="session-timer-value" id="session-timer">2:00</span>
@@ -100,7 +137,8 @@
       <div class="question-sub" id="question-sub">Choose a mode and difficulty above</div>
       <div class="topic-badge" id="topic-badge" style="display:none"></div>
     </div>
-    <input class="answer-input" type="number" id="answer-input" placeholder="Type your answer..." oninput="handleInput()" disabled />
+    <div class="choices" id="choices"></div>
+    <input class="answer-input" type="text" inputmode="text" autocomplete="off" id="answer-input" placeholder="Answer — e.g. 12, 0.5 or 1/2" oninput="handleInput()" disabled />
     <div class="feedback" id="feedback"></div>
     <div class="solution-panel" id="solution-panel">
       <div class="solution-title">Solution</div>
@@ -117,19 +155,35 @@
     <div class="end-score" id="end-score">0</div>
     <div class="end-label">correct in 120 seconds</div>
     <div class="end-detail" id="end-detail"></div>
+    <div class="save-row" id="save-row">
+      <input type="text" id="name-input" maxlength="14" placeholder="Your name" />
+      <button class="btn btn-primary" id="save-btn" onclick="saveScore()">Save</button>
+    </div>
     <div class="controls-row" style="justify-content:center">
       <button class="btn btn-primary" onclick="resetSession()" style="max-width:160px">Play again</button>
     </div>
+  </div>
+</div>
+<div class="card">
+  <div class="lb-head">
+    <span class="lb-title">Leaderboard</span>
+    <span class="lb-filter" id="lb-filter"></span>
+  </div>
+  <ul class="lb-list" id="lb-list"></ul>
+  <div style="text-align:center;margin-top:1rem">
+    <button class="lb-clear" id="lb-clear" onclick="clearLeaderboard()">Clear leaderboard</button>
   </div>
 </div>
 <script>
 let mode='arithmetic', diff='easy';
 let score=0, streak=0, best=0, totalAttempted=0;
 let currentQ=null, sessionInterval=null;
+let seenQuestions=new Set(); // questions shown this session — cleared each new session
+let answerStyle='choice', currentChoices=[];
 let sessionTimeLeft=120, sessionActive=false, accepting=false, paused=false;
 
-function setMode(m){mode=m;document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='arithmetic')||(i===1&&m==='tmua')));resetSession();}
-function setDiff(d){diff=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===d));if(sessionActive&&!paused)nextQuestion();}
+function setMode(m){mode=m;document.querySelectorAll('.mode-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&m==='arithmetic')||(i===1&&m==='tmua')));resetSession();renderLeaderboard();}
+function setDiff(d){diff=d;document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===d));renderLeaderboard();if(sessionActive&&!paused)nextQuestion();}
 function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
 function pick(arr){return arr[rand(0,arr.length-1)];}
 function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;}
@@ -248,15 +302,16 @@ function genPolynomials(){
     return{q:`Remainder when ${a}x²${Bs}x${Cs} is divided by (x−${r})?`,a:rem,sub:'Remainder theorem',topic:'Polynomials',
       steps:[`By Remainder Theorem: substitute x=${r}`,`f(${r}) = ${a}(${r})²${b>=0?'+':''}${b}(${r})${c>=0?'+':''}${c}`,`= ${a*r*r}${b*r>=0?'+':''}${b*r}${c>=0?'+':''}${c} = ${rem}`]};
   } else if(t===1){
-    // Factor theorem: is (x-a) a factor?
-    const roots=pick([[-1,2],[-2,3],[1,-3],[-1,-2],[2,3]]);
-    const [r1,r2]=roots;
+    // Factor theorem: is (x-a) a factor? — random roots each time
+    let r1=rand(-4,4),r2=rand(-4,4);
     const B=-(r1+r2),C=r1*r2;
-    const testRoot=pick([r1,r2,r1+1]);
+    // 50/50: test an actual root, or a deliberate near-miss
+    const testRoot=rand(0,1)?pick([r1,r2]):pick([r1,r2])+pick([1,-1,2,-2]);
     const isF=(testRoot===r1||testRoot===r2)?1:0;
     const Bs=(B>=0?'+':'')+B,Cs=(C>=0?'+':'')+C;
-    return{q:`Is (x−${testRoot}) a factor of x²${Bs}x${Cs}? (1=yes, 0=no)`,a:isF,sub:'Factor theorem',topic:'Polynomials',
-      steps:[`Substitute x=${testRoot}: f(${testRoot}) = ${testRoot*testRoot+B*testRoot+C}`,`f(${testRoot})${isF?'=0, so yes':'≠0, so no'}`,`Answer: ${isF}`]};
+    const fac=testRoot>=0?`(x−${testRoot})`:`(x+${-testRoot})`;
+    return{q:`Is ${fac} a factor of x²${Bs}x${Cs}? (1=yes, 0=no)`,a:isF,sub:'Factor theorem',topic:'Polynomials',
+      steps:[`Substitute x=${testRoot}: f(${testRoot}) = ${testRoot*testRoot+B*testRoot+C}`,`f(${testRoot}) ${isF?'= 0 → yes':'≠ 0 → no'}`,`Answer: ${isF}`]};
   } else {
     // Algebraic division: find quotient coefficient
     // (x² + bx + c) ÷ (x - r), find coefficient of x in quotient
@@ -397,35 +452,58 @@ function genCircleGeom(){
 
 // MM4: Trigonometry
 function genTrigExact(){
-  const cases=[
-    {q:'sin(30°) = ? (as decimal)',a:0.5,steps:['sin(30°) = 1/2 = 0.5']},
-    {q:'cos(60°) = ? (as decimal)',a:0.5,steps:['cos(60°) = 1/2 = 0.5']},
-    {q:'tan(45°) = ?',a:1,steps:['tan(45°) = 1']},
-    {q:'sin(90°) = ?',a:1,steps:['sin(90°) = 1']},
-    {q:'cos(0°) = ?',a:1,steps:['cos(0°) = 1']},
-    {q:'cos(90°) = ?',a:0,steps:['cos(90°) = 0']},
-    {q:'sin(0°) = ?',a:0,steps:['sin(0°) = 0']},
-    {q:'tan(0°) = ?',a:0,steps:['tan(0°) = 0']},
-    {q:'sin²(30°)+cos²(30°) = ?',a:1,steps:['Pythagorean identity: sin²θ+cos²θ=1','= 1']},
-    {q:'sin(60°)÷cos(60°) = ?',a:parseFloat(Math.sqrt(3).toFixed(4)),sub:'Give to 4 d.p.',steps:['sin(60°)/cos(60°) = tan(60°) = √3 ≈ 1.7321']},
-  ];
-  return{...pick(cases),topic:'Trigonometry'};
+  // Exact values built fresh from a random function × angle (not a fixed list)
+  const table={
+    sin:{'0':['0',0],'30':['1/2',0.5],'45':['√2/2',0.7071],'60':['√3/2',0.8660],'90':['1',1]},
+    cos:{'0':['1',1],'30':['√3/2',0.8660],'45':['√2/2',0.7071],'60':['1/2',0.5],'90':['0',0]},
+    tan:{'0':['0',0],'30':['1/√3',0.5774],'45':['1',1],'60':['√3',1.7321]}
+  };
+  const t=rand(0,2);
+  if(t===0){
+    const fn=pick(['sin','cos','tan']);
+    const ang=pick(Object.keys(table[fn]));
+    const [exact,val]=table[fn][ang];
+    const hint=Number.isInteger(val)?'':' (as a decimal)';
+    return{q:`${fn}(${ang}°) = ?${hint}`,a:val,sub:/[√\/]/.test(exact)?'Exact: '+exact:'',topic:'Trigonometry',
+      steps:[`${fn}(${ang}°) = ${exact}`,`≈ ${val}`]};
+  } else if(t===1){
+    // Pythagorean identity for a random angle
+    const ang=pick(['0','30','45','60','90']);
+    return{q:`sin²(${ang}°)+cos²(${ang}°) = ?`,a:1,sub:'Pythagorean identity',topic:'Trigonometry',
+      steps:[`sin²θ+cos²θ = 1 for every θ`,`= 1`]};
+  } else {
+    // tan = sin/cos for a random angle where it is defined
+    const ang=pick(['0','30','45','60']);
+    const [exact,val]=table.tan[ang];
+    const hint=Number.isInteger(val)?'':' (as a decimal)';
+    return{q:`sin(${ang}°) ÷ cos(${ang}°) = ?${hint}`,a:val,sub:'tan θ = sin θ / cos θ',topic:'Trigonometry',
+      steps:[`sin/cos = tan(${ang}°) = ${exact}`,`≈ ${val}`]};
+  }
 }
 
 function genTrigSolve(){
-  // Count solutions in [0°,360°]
-  const problems=[
-    {q:'Solutions to sin(x)=0.5 in [0°,360°]?',a:2,steps:['Principal: x=30°','Also: x=180°−30°=150°','2 solutions']},
-    {q:'Solutions to cos(x)=0.5 in [0°,360°]?',a:2,steps:['x=60° and x=360°−60°=300°','2 solutions']},
-    {q:'Solutions to tan(x)=1 in [0°,360°]?',a:2,steps:['x=45° and x=45°+180°=225°','2 solutions']},
-    {q:'Solutions to sin(x)=−1 in [0°,360°]?',a:1,steps:['x=270°','Only 1 solution']},
-    {q:'Solutions to cos(x)=1 in [0°,360°]?',a:1,steps:['x=0° (=360°)','Only 1 solution']},
-    {q:'Solutions to sin(x)=0 in [0°,360°]?',a:2,steps:['x=0° and x=180°','(x=360° is same as 0°)','2 solutions']},
-    {q:'Solutions to cos(x)=−1 in [0°,360°]?',a:1,steps:['x=180°','Only 1 solution']},
-    {q:'Solutions to tan(x)=0 in (0°,360°)?',a:1,steps:['tan=0 at x=180° in (0°,360°)','1 solution']},
-    {q:'Solutions to sin(x)=1 in [0°,360°]?',a:1,steps:['x=90°','Only 1 solution']},
-  ];
-  return{...pick(problems),topic:'Trigonometry'};
+  // Count solutions in [0°,360°) — built fresh from a random function × value
+  const fn=pick(['sin','cos','tan']);
+  const values = fn==='tan'
+    ? [['1',1],['√3',1.7321],['1/√3',0.5774],['−1',-1],['−√3',-1.7321],['0',0]]
+    : [['1/2',0.5],['√3/2',0.8660],['√2/2',0.7071],['−1/2',-0.5],['−√3/2',-0.8660],
+       ['1',1],['−1',-1],['0',0],['2',2],['1.5',1.5],['−2',-2]];
+  const [disp,v]=pick(values);
+  let a,steps;
+  if(fn==='tan'){
+    a=2;
+    steps=[`tan(x) takes every real value once per 180°`,`In [0°,360°) that gives 2 solutions`];
+  } else if(Math.abs(v)>1){
+    a=0;
+    steps=[`${fn}(x) always lies between −1 and 1`,`|${disp}| > 1 → impossible`,`0 solutions`];
+  } else if(Math.abs(v)===1){
+    a=1;
+    steps=[`${fn}(x)=${disp} reaches the extreme value just once`,`1 solution in [0°,360°)`];
+  } else {
+    a=2;
+    steps=[`${fn}(x)=${disp} is crossed twice per revolution`,`2 solutions in [0°,360°)`];
+  }
+  return{q:`Number of solutions to ${fn}(x)=${disp} in [0°,360°)?`,a,sub:'Count in one revolution',topic:'Trigonometry',steps};
 }
 
 function genRadians(){
@@ -453,19 +531,19 @@ function genRadians(){
 }
 
 function genPythagoras(){
-  const triples=[[3,4,5],[5,12,13],[8,15,17],[7,24,25],[6,8,10],[9,12,15],[10,24,26],[20,21,29]];
-  const tr=pick(triples);
+  // Primitive triples scaled by a random factor → far more distinct triangles
+  const primitives=[[3,4,5],[5,12,13],[8,15,17],[7,24,25],[20,21,29],[9,40,41],[12,35,37]];
+  const k=diff==='hard'?rand(1,5):rand(1,3);
+  const tr=pick(primitives).map(x=>x*k);
   const hide=rand(0,2);
-  const vals=[...tr];
-  const ans=vals[hide];
-  const given=vals.filter((_,i)=>i!==hide);
+  const ans=tr[hide];
+  const given=tr.filter((_,i)=>i!==hide);
   if(hide===2){
-    return{q:`Right triangle: legs ${given[0]}, ${given[1]}. Hypotenuse?`,a:ans,sub:'Pythagoras',topic:'Geometry',
-      steps:[`c²=${given[0]}²+${given[1]}²=${given[0]**2}+${given[1]**2}=${ans**2}`,`c=${ans}`]};
-  } else {
-    return{q:`Right triangle: leg ${given[0]}, hypotenuse ${given[1]}. Other leg?`,a:ans,sub:'Pythagoras',topic:'Geometry',
-      steps:[`a²+${given[0]}²=${given[1]}²`,`a²=${given[1]**2}−${given[0]**2}=${ans**2}`,`a=${ans}`]};
+    return{q:`Right triangle: legs ${given[0]} and ${given[1]}. Hypotenuse?`,a:ans,sub:'Pythagoras',topic:'Geometry',
+      steps:[`c² = ${given[0]}²+${given[1]}² = ${given[0]**2}+${given[1]**2}`,`c² = ${ans**2}`,`c = ${ans}`]};
   }
+  return{q:`Right triangle: leg ${given[0]}, hypotenuse ${given[1]}. Other leg?`,a:ans,sub:'Pythagoras',topic:'Geometry',
+    steps:[`a² = ${given[1]}²−${given[0]}² = ${given[1]**2}−${given[0]**2}`,`a² = ${ans**2}`,`a = ${ans}`]};
 }
 
 // MM5: Logs
@@ -610,19 +688,19 @@ function genNumber(){
     return{q:`${pct}% of ${total} = ?`,a:ans,sub:'',topic:'Number',
       steps:[`${pct}/100 × ${total}`,`= ${ans}`]};
   } else if(t===2){
-    // HCF
-    const pairs=[[12,18],[20,30],[24,36],[15,25],[18,24],[16,24],[30,45],[28,42]];
-    const [a,b]=pick(pairs);
-    const ans=gcd(a,b);
+    // HCF — build from a chosen HCF g and coprime multipliers so the answer is exactly g
+    const g=pick([2,3,4,5,6,7,8,9]);
+    let m,n;do{m=rand(2,9);n=rand(2,9);}while(gcd(m,n)!==1||m===n);
+    const a=g*m,b=g*n,ans=g;
     return{q:`HCF of ${a} and ${b}?`,a:ans,sub:'Highest common factor',topic:'Number',
-      steps:[`${a}=${factorStr(a)}`,`${b}=${factorStr(b)}`,`HCF = ${ans}`]};
+      steps:[`${a} = ${factorStr(a)}`,`${b} = ${factorStr(b)}`,`HCF = ${ans}`]};
   } else if(t===3){
-    // LCM
-    const pairs=[[4,6],[6,8],[5,6],[4,9],[6,10],[8,12],[9,15],[10,15]];
-    const [a,b]=pick(pairs);
-    const ans=a*b/gcd(a,b);
+    // LCM — same construction; LCM = g·m·n since m,n are coprime
+    const g=pick([2,3,4,5,6]);
+    let m,n;do{m=rand(2,7);n=rand(2,7);}while(gcd(m,n)!==1||m===n);
+    const a=g*m,b=g*n,ans=g*m*n;
     return{q:`LCM of ${a} and ${b}?`,a:ans,sub:'Lowest common multiple',topic:'Number',
-      steps:[`LCM = a×b/HCF`,`= ${a}×${b}/${gcd(a,b)}`,`= ${ans}`]};
+      steps:[`HCF = ${g}`,`LCM = a×b/HCF = ${a}×${b}/${g}`,`= ${ans}`]};
   } else {
     // Compound interest (single period)
     const P=pick([100,200,500,1000]),r=pick([5,10,20,25]),n=rand(1,3);
@@ -672,16 +750,15 @@ function genPolygonGeometry(){
 function genProbability(){
   const t=rand(0,3);
   if(t===0){
-    // P(A∪B) = P(A)+P(B)-P(A∩B)
-    const opts=[
-      {pa:0.4,pb:0.5,pab:0.2,ans:0.7},
-      {pa:0.3,pb:0.6,pab:0.1,ans:0.8},
-      {pa:0.5,pb:0.4,pab:0.3,ans:0.6},
-      {pa:0.6,pb:0.3,pab:0.2,ans:0.7},
-    ];
-    const o=pick(opts);
-    return{q:`P(A)=${o.pa}, P(B)=${o.pb}, P(A∩B)=${o.pab}. P(A∪B)?`,a:o.ans,sub:'Probability',topic:'Probability',
-      steps:[`P(A∪B)=P(A)+P(B)−P(A∩B)`,`=${o.pa}+${o.pb}−${o.pab}`,`=${o.ans}`]};
+    // P(A∪B) = P(A)+P(B)−P(A∩B) — random tenths with P(A∩B) ≤ min and union ≤ 1
+    let pa,pb,pab,ans;
+    do{
+      pa=rand(2,7)/10;pb=rand(2,7)/10;
+      pab=rand(1,Math.round(Math.min(pa,pb)*10))/10;
+      ans=+(pa+pb-pab).toFixed(2);
+    }while(ans>1);
+    return{q:`P(A)=${pa}, P(B)=${pb}, P(A∩B)=${pab}. P(A∪B)?`,a:ans,sub:'Addition rule',topic:'Probability',
+      steps:[`P(A∪B)=P(A)+P(B)−P(A∩B)`,`=${pa}+${pb}−${pab}`,`=${ans}`]};
   } else if(t===1){
     // Conditional P(B|A)=P(A∩B)/P(A)
     const denoms=[4,5,10,20];
@@ -692,32 +769,85 @@ function genProbability(){
     return{q:`P(B|A)? P(A∩B)=${both}/${denom}, P(A)=${countA}/${denom}`,a:ans,sub:'Conditional probability (2 d.p.)',topic:'Probability',
       steps:[`P(B|A) = P(A∩B)/P(A)`,`= (${both}/${denom})/(${countA}/${denom})`,`= ${both}/${countA} ≈ ${ans}`]};
   } else if(t===2){
-    // Mutually exclusive: P(A)+P(B)
-    const pa=pick([0.1,0.2,0.25,0.3,0.35]);
-    const pb=pick([0.1,0.15,0.2,0.25,0.3]);
-    const ans=parseFloat((pa+pb).toFixed(2));
+    // Mutually exclusive: P(A)+P(B) — random tenths keeping the sum ≤ 1
+    let pa,pb;do{pa=rand(1,6)/10;pb=rand(1,6)/10;}while(pa+pb>1);
+    const ans=+(pa+pb).toFixed(2);
     return{q:`A,B mutually exclusive. P(A)=${pa}, P(B)=${pb}. P(A or B)?`,a:ans,sub:'Mutually exclusive',topic:'Probability',
       steps:[`Mutually exclusive → P(A or B)=P(A)+P(B)`,`=${pa}+${pb}=${ans}`]};
   } else {
-    // Tree diagram — two independent events
-    const p1=pick([0.5,0.25,0.4,0.3,0.6]);
-    const p2=pick([0.5,0.25,0.4,0.3,0.6]);
-    const ans=parseFloat((p1*p2).toFixed(4));
-    return{q:`P(A)=${p1}, P(B)=${p2}, independent. P(A and B)?`,a:ans,sub:'Independent events (4 d.p.)',topic:'Probability',
+    // Independent events — random tenths
+    const p1=rand(1,9)/10,p2=rand(1,9)/10;
+    const ans=+(p1*p2).toFixed(2);
+    return{q:`P(A)=${p1}, P(B)=${p2}, independent. P(A and B)?`,a:ans,sub:'Independent events',topic:'Probability',
       steps:[`Independent: P(A∩B)=P(A)×P(B)`,`=${p1}×${p2}`,`=${ans}`]};
   }
+}
+
+// ── SMC / PROBLEM SOLVING (Senior Maths Challenge style) ──────────────────
+// Every one is built from random parameters, so nothing is a fixed bank.
+function genSMC(){
+  const hard=diff==='hard';
+  const gens=[
+    // Consecutive integers
+    ()=>{const m=rand(5,hard?90:40);const s=3*m;return{q:`Three consecutive integers add up to ${s}. What is the largest of the three?`,a:m+1,sub:'Problem solving',topic:'SMC',steps:[`Middle number = ${s} ÷ 3 = ${m}`,`Largest = ${m} + 1 = ${m+1}`]};},
+    // Handshakes / pairs
+    ()=>{const n=rand(5,hard?20:12);const a=n*(n-1)/2;return{q:`${n} people each shake hands once with every other person. How many handshakes take place?`,a,sub:'Problem solving',topic:'SMC',steps:[`Each pair shakes once: n(n−1)/2`,`= ${n}×${n-1}/2 = ${a}`]};},
+    // Painted cube — no painted face
+    ()=>{const n=rand(3,hard?7:6);const a=(n-2)**3;return{q:`A ${n}×${n}×${n} cube is painted on the outside, then cut into unit cubes. How many unit cubes have no painted face?`,a,sub:'Problem solving',topic:'SMC',steps:[`The unpainted cubes form an inner (n−2)³ block`,`= ${n-2}³ = ${a}`]};},
+    // Painted cube — exactly two painted faces
+    ()=>{const n=rand(3,hard?7:6);const a=12*(n-2);return{q:`A ${n}×${n}×${n} cube is painted, then cut into unit cubes. How many have exactly two painted faces?`,a,sub:'Problem solving',topic:'SMC',steps:[`These sit along edges (not corners): 12 edges × (n−2)`,`= 12 × ${n-2} = ${a}`]};},
+    // Sum of first n odd numbers = n²
+    ()=>{const n=rand(4,hard?20:12);const a=n*n;return{q:`What is the value of 1 + 3 + 5 + … + ${2*n-1} (the first ${n} odd numbers)?`,a,sub:'Problem solving',topic:'SMC',steps:[`Sum of the first n odd numbers = n²`,`= ${n}² = ${a}`]};},
+    // Mean — find the missing value
+    ()=>{const n=rand(4,6),mean=rand(5,15),total=n*mean;const others=[];let sum=0;for(let i=0;i<n-1;i++){const v=rand(1,mean+5);others.push(v);sum+=v;}const missing=total-sum;if(missing<1||missing>60)return null;return{q:`The mean of ${n} numbers is ${mean}. ${n-1} of them are ${others.join(', ')}. What is the remaining number?`,a:missing,sub:'Problem solving',topic:'SMC',steps:[`Total = ${n} × ${mean} = ${total}`,`Sum of the known numbers = ${sum}`,`Remaining = ${total} − ${sum} = ${missing}`]};},
+    // Percentage up then down
+    ()=>{const P=pick([100,200,400,500,800,1000]),up=pick([10,20,25,50]),down=pick([10,20,25,50]);const afterUp=P*(1+up/100),fin=afterUp*(1-down/100);if(!Number.isInteger(fin))return null;return{q:`£${P} is increased by ${up}%, then that result is decreased by ${down}%. What is the final amount (£)?`,a:fin,sub:'Problem solving',topic:'SMC',steps:[`After +${up}%: ${P} × ${1+up/100} = ${afterUp}`,`After −${down}%: ${afterUp} × ${1-down/100} = ${fin}`]};},
+    // Ratio — largest share
+    ()=>{const parts=[rand(1,3),rand(2,4),rand(3,5)],unit=rand(2,hard?12:8),sum=parts.reduce((s,p)=>s+p,0),total=sum*unit,largest=Math.max(...parts)*unit;return{q:`£${total} is shared between three people in the ratio ${parts.join(':')}. What is the largest share (£)?`,a:largest,sub:'Problem solving',topic:'SMC',steps:[`Total parts = ${parts.join(' + ')} = ${sum}`,`One part = ${total} ÷ ${sum} = ${unit}`,`Largest = ${Math.max(...parts)} × ${unit} = ${largest}`]};},
+    // Inclusion–exclusion — how many do neither
+    ()=>{const both=rand(2,6),a=rand(both+2,both+10),b=rand(both+2,both+10),neither=rand(1,8),N=a+b-both+neither;return{q:`In a class of ${N}, ${a} study French and ${b} study German. ${both} study both. How many study neither?`,a:neither,sub:'Problem solving',topic:'SMC',steps:[`Studying at least one = ${a} + ${b} − ${both} = ${a+b-both}`,`Neither = ${N} − ${a+b-both} = ${neither}`]};},
+    // Number of positive factors
+    ()=>{const e2=rand(1,hard?4:3),e3=rand(1,2),N=(2**e2)*(3**e3),cnt=(e2+1)*(e3+1);return{q:`How many positive factors (divisors) does ${N} have?`,a:cnt,sub:'Problem solving',topic:'SMC',steps:[`${N} = 2^${e2} × 3^${e3}`,`Number of factors = (${e2}+1)(${e3}+1) = ${cnt}`]};},
+    // Clock angle on the hour
+    ()=>{const h=rand(1,11),raw=30*h,ang=Math.min(raw,360-raw);return{q:`What is the smaller angle between the hands of a clock at ${h} o'clock? (in degrees)`,a:ang,sub:'Problem solving',topic:'SMC',steps:[`Each hour mark is 30°, so ${h} hours = ${raw}°`,`Smaller angle = ${ang}°`]};},
+    // Distance / speed / time
+    ()=>{const s=pick([30,40,50,60,80]),t=rand(2,5),d=s*t;return{q:`A car travels ${d} km at a steady ${s} km/h. How many hours does the journey take?`,a:t,sub:'Problem solving',topic:'SMC',steps:[`Time = distance ÷ speed`,`= ${d} ÷ ${s} = ${t} hours`]};},
+    // Perfect squares in a range
+    ()=>{const lo=rand(1,5),hi=rand(lo+3,12),A=lo*lo,B=hi*hi,cnt=hi-lo+1;return{q:`How many perfect squares are there between ${A} and ${B} inclusive?`,a:cnt,sub:'Problem solving',topic:'SMC',steps:[`√${A} = ${lo} and √${B} = ${hi}`,`Count = ${hi} − ${lo} + 1 = ${cnt}`]};},
+    // Reverse the digits — difference
+    ()=>{let a=rand(1,9),b=rand(0,9);while(a===b)b=rand(0,9);const orig=10*a+b,rev=10*b+a,diff=Math.abs(orig-rev);return{q:`Take ${orig}, reverse its digits, and find the positive difference between the number and its reverse.`,a:diff,sub:'Problem solving',topic:'SMC',steps:[`${orig} with digits reversed is ${rev}`,`Difference = |${orig} − ${rev}| = ${diff}`]};},
+    // Fraction spent — amount left
+    ()=>{const denom=pick([2,3,4,5]),N=denom*rand(4,20),spent=N/denom,left=N-spent;return{q:`Sam has £${N} and spends 1/${denom} of it. How much money is left (£)?`,a:left,sub:'Problem solving',topic:'SMC',steps:[`Spent = ${N} ÷ ${denom} = ${spent}`,`Left = ${N} − ${spent} = ${left}`]};},
+    // Triangular number
+    ()=>{const n=rand(4,hard?20:15),a=n*(n+1)/2;return{q:`A triangular pattern has ${n} rows containing 1, 2, 3, …, ${n} dots. How many dots in total?`,a,sub:'Problem solving',topic:'SMC',steps:[`Total = n(n+1)/2`,`= ${n} × ${n+1} / 2 = ${a}`]};},
+  ];
+  for(let i=0;i<10;i++){const g=pick(gens)();if(g&&Number.isInteger(g.a))return g;}
+  const n=rand(5,12);return{q:`${n} people each shake hands once with every other person. How many handshakes?`,a:n*(n-1)/2,sub:'Problem solving',topic:'SMC',steps:[`n(n−1)/2 = ${n*(n-1)/2}`]};
+}
+
+// Re-roll until we get a question not already shown this session (resets each session,
+// so nothing is lost forever — questions can reappear in a later session).
+function generateUnique(){
+  const gen=mode==='arithmetic'?generateArithmetic:generateTMUA;
+  let q=null;
+  for(let i=0;i<40;i++){
+    q=gen();
+    if(q&&q.q&&!seenQuestions.has(q.q)){seenQuestions.add(q.q);return q;}
+  }
+  if(q&&q.q)seenQuestions.add(q.q); // space exhausted — accept a repeat rather than hang
+  return q;
 }
 
 // TMUA dispatcher
 function generateTMUA(){
   let gens;
   if(diff==='easy'){
-    gens=[genIndices,genQuadratics,genSequences,genBinomial,genLogs,genTrigExact,genPythagoras,genNumber,genPolygonGeometry,genProbability,genCoordGeom];
+    gens=[genIndices,genQuadratics,genSequences,genBinomial,genLogs,genTrigExact,genPythagoras,genNumber,genPolygonGeometry,genProbability,genCoordGeom,genSMC];
   } else if(diff==='medium'){
-    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations];
+    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations,genSMC];
   } else {
     // Hard: full spec, harder parameters, all generators
-    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations];
+    gens=[genIndices,genQuadratics,genPolynomials,genSequences,genBinomial,genCoordGeom,genCircleGeom,genLogs,genTrigExact,genTrigSolve,genRadians,genPythagoras,genDiff,genIntegration,genNumber,genPolygonGeometry,genProbability,genTransformations,genSMC];
   }
   for(let i=0;i<10;i++){
     try{
@@ -729,9 +859,22 @@ function generateTMUA(){
 }
 
 // ── SESSION LOGIC ─────────────────────────────────────────────────────────
+function parseAnswer(str){
+  str=(str==null?'':''+str).trim();
+  if(str==='')return NaN;
+  if(str.indexOf('/')!==-1){
+    const parts=str.split('/');
+    if(parts.length!==2)return NaN;
+    const n=parseFloat(parts[0].trim()),d=parseFloat(parts[1].trim());
+    if(isNaN(n)||isNaN(d)||d===0)return NaN;
+    return n/d;
+  }
+  return parseFloat(str);
+}
+
 function handleInput(){
-  if(!accepting||!currentQ)return;
-  const val=parseFloat(document.getElementById('answer-input').value);
+  if(answerStyle!=='type'||!accepting||!currentQ)return;
+  const val=parseAnswer(document.getElementById('answer-input').value);
   if(isNaN(val))return;
   if(Math.abs(val-currentQ.a)<0.015){
     accepting=false;score++;streak++;totalAttempted++;
@@ -744,38 +887,122 @@ function handleInput(){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
+  applyAnswerStyle();
   document.getElementById('answer-input').addEventListener('keydown',function(e){
     if(e.key==='Enter'&&sessionActive&&!paused&&accepting){
-      const val=parseFloat(this.value);
+      const val=parseAnswer(this.value);
       if(!isNaN(val)&&Math.abs(val-currentQ.a)>=0.015)showWrong();
     }
+  });
+  // Pick a multiple-choice option with keys 1–5 or A–E
+  document.addEventListener('keydown',e=>{
+    if(answerStyle!=='choice'||!sessionActive||paused||!accepting)return;
+    let idx=-1;
+    if(e.key>='1'&&e.key<='5')idx=+e.key-1;
+    else{const k=e.key.toLowerCase();if(k>='a'&&k<='e')idx='abcde'.indexOf(k);}
+    if(idx>=0&&idx<currentChoices.length){e.preventDefault();chooseOption(idx);}
   });
 });
 
 function nextQuestion(){
   accepting=false;hideSolution();
   document.getElementById('next-btn').classList.remove('visible');
-  const inp=document.getElementById('answer-input');
-  inp.value='';inp.disabled=false;inp.className='answer-input';inp.focus();
   document.getElementById('feedback').textContent='';
   document.getElementById('feedback').className='feedback';
-  currentQ=mode==='arithmetic'?generateArithmetic():generateTMUA();
+  currentQ=generateUnique();
   document.getElementById('question-text').textContent=currentQ.q;
   document.getElementById('question-sub').textContent=currentQ.sub||'';
   const badge=document.getElementById('topic-badge');
   if(mode==='tmua'&&currentQ.topic){badge.textContent=currentQ.topic;badge.style.display='inline-block';}
   else badge.style.display='none';
   accepting=true;
+  renderAnswerArea();
 }
 
-function showWrong(){
+// Swap the answer widgets for the current question depending on the chosen style
+function applyAnswerStyle(){
+  document.getElementById('choices').style.display=answerStyle==='choice'?'flex':'none';
+  document.getElementById('answer-input').style.display=answerStyle==='type'?'block':'none';
+}
+function setAnswerStyle(s){
+  answerStyle=s;
+  document.querySelectorAll('.answer-toggle button').forEach((b,i)=>b.classList.toggle('active',(i===0&&s==='choice')||(i===1&&s==='type')));
+  applyAnswerStyle();
+  if(sessionActive&&!paused&&accepting&&currentQ)renderAnswerArea();
+}
+function renderAnswerArea(){
+  applyAnswerStyle();
+  const inp=document.getElementById('answer-input');
+  const choicesEl=document.getElementById('choices');
+  if(answerStyle==='type'){
+    choicesEl.innerHTML='';
+    inp.value='';inp.disabled=false;inp.className='answer-input';inp.focus();
+  } else {
+    inp.value='';inp.disabled=true;inp.className='answer-input';
+    currentChoices=buildChoices(currentQ.a);
+    choicesEl.innerHTML=currentChoices.map((v,i)=>
+      `<button class="choice" onclick="chooseOption(${i})"><span class="key">${'ABCDE'[i]}</span><span>${formatNum(v)}</span></button>`
+    ).join('');
+  }
+}
+
+function chooseOption(i){
+  if(answerStyle!=='choice'||!accepting||!currentQ)return;
+  const v=currentChoices[i];
+  const btns=document.querySelectorAll('#choices .choice');
+  btns.forEach(b=>b.disabled=true);
+  if(Math.abs(v-currentQ.a)<0.015){
+    accepting=false;score++;streak++;totalAttempted++;
+    if(streak>best)best=streak;
+    btns[i].classList.add('correct');
+    showFeedback(true,streak>=3?`Correct! ${streak} in a row 🔥`:'Correct!');
+    updateStats();setTimeout(nextQuestion,600);
+  } else {
+    btns[i].classList.add('wrong');
+    btns.forEach((b,j)=>{if(Math.abs(currentChoices[j]-currentQ.a)<0.015)b.classList.add('correct');});
+    pauseForWrong();
+  }
+}
+
+function pauseForWrong(){
   accepting=false;paused=true;clearInterval(sessionInterval);
   totalAttempted++;streak=0;updateStats();
-  const inp=document.getElementById('answer-input');
-  inp.classList.add('wrong');inp.disabled=true;
   showFeedback(false,'Wrong — timer paused. Study the solution, then continue.');
   showSolution(currentQ);
   document.getElementById('next-btn').classList.add('visible');
+}
+
+function showWrong(){
+  const inp=document.getElementById('answer-input');
+  inp.classList.add('wrong');inp.disabled=true;
+  pauseForWrong();
+}
+
+// ── Multiple-choice option building ───────────────────────────────────────
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rand(0,i);[a[i],a[j]]=[a[j],a[i]];}return a;}
+function formatNum(v){return Number.isInteger(v)?''+v:''+(+v.toFixed(4));}
+function keyOf(v){return (+(+v).toFixed(4)).toString();}
+function buildChoices(ans){
+  const isInt=Number.isInteger(ans),mag=Math.abs(ans);
+  let raw=isInt
+    ? [ans+1,ans-1,ans+2,ans-2,ans+3,ans-3,ans+5,ans-5,ans+10,ans-10,2*ans,-ans]
+    : [ans+0.1,ans-0.1,ans+0.5,ans-0.5,ans+ (mag<1?0.25:1),ans- (mag<1?0.25:1),2*ans,ans/2,-ans].map(v=>+v.toFixed(4));
+  const step=isInt?1:(mag<1?0.1:1);
+  const seen=new Set([keyOf(ans)]),distinct=[];
+  shuffle(raw);
+  for(const v of raw){
+    if(!Number.isFinite(v)||Math.abs(v-ans)<1e-9)continue;
+    const k=keyOf(v);if(seen.has(k))continue;
+    seen.add(k);distinct.push(v);
+    if(distinct.length>=4)break;
+  }
+  let pad=1;
+  while(distinct.length<4&&pad<60){
+    const v=+(ans+pad*step).toFixed(4),k=keyOf(v);
+    if(!seen.has(k)&&Math.abs(v-ans)>1e-9){seen.add(k);distinct.push(v);}
+    pad++;
+  }
+  return shuffle([ans,...distinct]);
 }
 
 function resumeSession(){paused=false;document.getElementById('next-btn').classList.remove('visible');nextQuestion();startTimer();}
@@ -812,6 +1039,7 @@ function startTimer(){
 
 function startSession(){
   sessionActive=true;paused=false;score=0;streak=0;totalAttempted=0;sessionTimeLeft=120;
+  seenQuestions.clear();
   updateStats();updateSessionTimer();
   document.getElementById('start-btn').textContent='Restart';
   document.getElementById('end-screen').classList.remove('visible');
@@ -823,16 +1051,26 @@ function startSession(){
 function endSession(){
   sessionActive=false;accepting=false;clearInterval(sessionInterval);
   document.getElementById('answer-input').disabled=true;
+  document.getElementById('choices').innerHTML='';
   document.getElementById('main-area').style.display='none';
   document.getElementById('end-screen').classList.add('visible');
   document.getElementById('end-score').textContent=score;
   const acc=totalAttempted>0?Math.round((score/totalAttempted)*100):0;
   document.getElementById('end-detail').textContent=`${totalAttempted} attempted · ${acc}% accuracy · best streak: ${best}`;
+  savedThisSession=false;
+  const saveBtn=document.getElementById('save-btn');
+  saveBtn.textContent='Save';saveBtn.disabled=false;
+  const nameInput=document.getElementById('name-input');
+  nameInput.disabled=false;nameInput.value=localStorage.getItem('tmua_last_name')||'';
+  const saveRow=document.getElementById('save-row');
+  if(score>0){saveRow.style.display='flex';nameInput.focus();}
+  else saveRow.style.display='none';
 }
 
 function resetSession(){
   clearInterval(sessionInterval);sessionActive=false;accepting=false;paused=false;
   score=0;streak=0;best=0;totalAttempted=0;sessionTimeLeft=120;
+  seenQuestions.clear();
   updateStats();updateSessionTimer();
   document.getElementById('question-text').textContent='Press start';
   document.getElementById('question-sub').textContent='Choose a mode and difficulty above';
@@ -841,6 +1079,7 @@ function resetSession(){
   document.getElementById('answer-input').value='';
   document.getElementById('answer-input').disabled=true;
   document.getElementById('answer-input').className='answer-input';
+  document.getElementById('choices').innerHTML='';
   document.getElementById('timer-bar').style.width='100%';
   document.getElementById('timer-bar').style.background='var(--blue)';
   document.getElementById('start-btn').textContent='Start';
@@ -850,6 +1089,119 @@ function resetSession(){
   document.getElementById('topic-badge').style.display='none';
   hideSolution();
 }
+
+// ── LEADERBOARD ───────────────────────────────────────────────────────────
+// ▼▼▼ SHARED ONLINE LEADERBOARD — paste your Supabase details between the quotes ▼▼▼
+const SUPABASE_URL = "https://kmcyzqurflnnkdxexoez.supabase.co";   // e.g. "https://abcdefgh.supabase.co"
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImttY3l6cXVyZmxubmtkeGV4b2V6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5MTIyODEsImV4cCI6MjA5ODQ4ODI4MX0.Ig7ncJYPXFWbnFgl9hN7fTBzs-4W1C7jLkA5ZRhgVwg";   // your project's "anon public" API key
+// ▲▲▲ Leave both blank to keep a local-only board on this device ▲▲▲
+
+const LB_KEY='tmua_leaderboard_v1';
+let lastSavedId=null, savedThisSession=false, renderToken=0;
+
+function remoteOn(){return SUPABASE_URL.trim()!==''&&SUPABASE_KEY.trim()!=='';}
+function sbHeaders(){return {'apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Content-Type':'application/json'};}
+
+function loadBoard(){
+  try{return JSON.parse(localStorage.getItem(LB_KEY))||[];}catch(e){return [];}
+}
+function storeBoard(list){
+  try{localStorage.setItem(LB_KEY,JSON.stringify(list));}catch(e){}
+}
+
+function paintRows(list){
+  const ul=document.getElementById('lb-list');
+  if(!list.length){
+    ul.innerHTML='<div class="lb-empty">No scores yet — play a session to get on the board.</div>';
+    return;
+  }
+  ul.innerHTML=list.map((e,i)=>{
+    const rankClass=i<3?` top${i+1}`:'';
+    const you=(e.id!=null&&e.id===lastSavedId)?' you':'';
+    const name=(e.name||'Anon').replace(/</g,'&lt;');
+    return `<li class="lb-row${rankClass}${you}">
+      <span class="lb-rank">${i+1}</span>
+      <span class="lb-name">${name}<small>${e.acc}% · streak ${e.bestStreak}</small></span>
+      <span class="lb-score">${e.score}</span>
+    </li>`;
+  }).join('');
+}
+
+async function renderLeaderboard(){
+  const modeLabel=mode==='arithmetic'?'Arithmetic':'TMUA / ESAT';
+  document.getElementById('lb-filter').textContent=`${modeLabel} · ${diff.charAt(0).toUpperCase()+diff.slice(1)}`+(remoteOn()?' · global':' · this device');
+  document.getElementById('lb-clear').style.display=remoteOn()?'none':'inline';
+  if(!remoteOn()){
+    const list=loadBoard()
+      .filter(e=>e.mode===mode&&e.diff===diff)
+      .sort((a,b)=>b.score-a.score||b.bestStreak-a.bestStreak||a.t-b.t)
+      .slice(0,10);
+    paintRows(list);
+    return;
+  }
+  const token=++renderToken;
+  document.getElementById('lb-list').innerHTML='<div class="lb-empty">Loading scores…</div>';
+  try{
+    const url=`${SUPABASE_URL}/rest/v1/scores?select=*&mode=eq.${mode}&diff=eq.${diff}&order=score.desc,best_streak.desc,created_at.asc&limit=10`;
+    const res=await fetch(url,{headers:sbHeaders()});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const rows=await res.json();
+    if(token!==renderToken)return; // a newer request superseded this one
+    paintRows(rows.map(r=>({id:r.id,name:r.name,score:r.score,acc:r.acc,bestStreak:r.best_streak})));
+  }catch(err){
+    if(token!==renderToken)return;
+    document.getElementById('lb-list').innerHTML='<div class="lb-empty">Couldn\'t load the online leaderboard. Check your connection, then <button class="lb-clear" onclick="renderLeaderboard()">retry</button>.</div>';
+  }
+}
+
+async function saveScore(){
+  if(savedThisSession)return;
+  const input=document.getElementById('name-input');
+  const name=(input.value.trim()||'Anon').slice(0,14);
+  const acc=totalAttempted>0?Math.round((score/totalAttempted)*100):0;
+  const saveBtn=document.getElementById('save-btn');
+  try{localStorage.setItem('tmua_last_name',name);}catch(e){}
+
+  if(remoteOn()){
+    saveBtn.disabled=true;saveBtn.textContent='Saving…';
+    try{
+      const res=await fetch(`${SUPABASE_URL}/rest/v1/scores`,{
+        method:'POST',
+        headers:{...sbHeaders(),'Prefer':'return=representation'},
+        body:JSON.stringify({name,score,acc,best_streak:best,mode,diff})
+      });
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const rows=await res.json();
+      lastSavedId=(rows&&rows[0])?rows[0].id:null;
+      savedThisSession=true;
+      saveBtn.textContent='Saved ✓';input.disabled=true;
+      renderLeaderboard();
+    }catch(err){
+      saveBtn.disabled=false;saveBtn.textContent='Retry save';
+      alert('Could not save your score online. Check your connection and try again.');
+    }
+    return;
+  }
+
+  // local fallback
+  const id='e'+(loadBoard().length)+'-'+score+'-'+name.length;
+  const list=loadBoard();
+  list.push({id,name,score,acc,bestStreak:best,mode,diff,t:list.length});
+  storeBoard(list);
+  lastSavedId=id;savedThisSession=true;
+  saveBtn.textContent='Saved ✓';saveBtn.disabled=true;input.disabled=true;
+  renderLeaderboard();
+}
+
+function clearLeaderboard(){
+  if(remoteOn())return; // the shared board can't be wiped from a visitor's browser
+  if(!confirm('Clear all leaderboard scores on this device? This cannot be undone.'))return;
+  storeBoard([]);lastSavedId=null;renderLeaderboard();
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  renderLeaderboard();
+  document.getElementById('name-input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!savedThisSession)saveScore();});
+});
 </script>
 </body>
 </html>
